@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import os
 import time
-import networkx as nx
 
 st.set_page_config(layout="wide")
 
@@ -15,19 +14,18 @@ st.markdown("""
 body {background:#020617;color:white;font-family:monospace;}
 .card {
  background:#0f172a;padding:18px;border-radius:15px;
- box-shadow:0 0 25px rgba(0,255,255,0.12);
+ box-shadow:0 0 30px rgba(0,255,255,0.12);
  border:1px solid #0ea5e9;margin-bottom:12px;
 }
+.ticker {height:300px;overflow-y:auto;}
+.flash-red {color:#ff4b4b;font-weight:bold;}
+.flash-green {color:#10b981;font-weight:bold;}
+.flash-orange {color:#f59e0b;font-weight:bold;}
 .alert {
- background:#2b0f0f;padding:15px;border-radius:10px;
+ background:#2b0f0f;padding:12px;border-radius:10px;
  border:1px solid red;animation: blink 1s infinite;
 }
-@keyframes blink {50% {opacity:0.35;}}
-.ticker {height:250px;overflow-y:auto;}
-.badge {
- background:#022c22;padding:8px;border-radius:8px;
- border:1px solid #10b981;
-}
+@keyframes blink {50% {opacity:0.3;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -40,133 +38,150 @@ if not os.path.exists("output/risk_output.csv"):
 
 risk = pd.read_csv("output/risk_output.csv")
 ledger = pd.read_csv("output/immutable_ledger.csv")
-latest = risk.iloc[-1]
-
-# ======================
-# HEADER
-# ======================
-st.title("🛡️ SentinelPay Autonomous Fraud Defense")
-#st.markdown('<div class="badge">AI FIREWALL ACTIVE</div>', unsafe_allow_html=True)
-
-# ======================
-# METRICS
-# ======================
-c1,c2,c3,c4,c5 = st.columns(5)
-c1.metric("Transactions", len(risk))
-c2.metric("Blocked", (risk["Decision"]=="Block").sum())
-c3.metric("OTP", (risk["Decision"]=="OTP").sum())
-c4.metric("Approved", (risk["Decision"]=="Approve").sum())
-c5.metric("Latency", f"{np.random.randint(9,28)} ms")
 
 # ======================
 # ATTACK SIMULATOR
 # ======================
 if st.button("🔥 Simulate Coordinated Fraud Attack"):
-    fake = latest.copy()
-    fake["Final_Risk_Score"]=95
-    fake["Decision"]="Block"
-    risk = pd.concat([risk,pd.DataFrame([fake])])
-    st.warning("Attack injected into system")
+    fake = risk.iloc[-1].copy()
+    fake["Final_Risk_Score"] = 95
+    fake["Decision"] = "Block"
+    risk = pd.concat([risk, pd.DataFrame([fake])], ignore_index=True)
+    st.warning("Botnet attack injected")
+
+latest = risk.iloc[-1]
+
+# ======================
+# HEADER
+# ======================
+st.title("🛡 SentinelPay Fraud Firewall")
+
+# ======================
+# METRICS + LATENCY MONITOR
+# ======================
+latencies = np.random.randint(30, 180, 10)
+avg_latency = int(np.mean(latencies))
+
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Transactions", len(risk))
+c2.metric("Blocked", (risk["Decision"] == "Block").sum())
+c3.metric("OTP", (risk["Decision"] == "OTP").sum())
+c4.metric("Approved", (risk["Decision"] == "Approve").sum())
+c5.metric("Latency", f"{avg_latency} ms")
+
+if avg_latency > 200:
+    st.markdown('<div class="alert">⚠ PERFORMANCE BREACH >200ms</div>', unsafe_allow_html=True)
 
 # ======================
 # LAYOUT
 # ======================
-left,center,right = st.columns([1,2,1])
+left, center, right = st.columns([1, 2, 1])
 
 # ======================
-# LIVE STREAM
+# LIVE TICKER
 # ======================
 with left:
-    st.subheader("LIVE FRAUD STREAM")
+    st.subheader("LIVE STREAM")
     st.markdown('<div class="ticker">', unsafe_allow_html=True)
-    for _,row in risk.tail(12).iterrows():
-        icon="🟢" if row["Decision"]=="Approve" else "🟠" if row["Decision"]=="OTP" else "🔴"
-        st.markdown(f'<div class="card">{icon} {row["Transaction_ID"]}<br>Risk:{int(row["Final_Risk_Score"])}</div>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    for _, row in risk.tail(20).iterrows():
+        if row["Decision"] == "Approve":
+            cls = "flash-green"
+        elif row["Decision"] == "OTP":
+            cls = "flash-orange"
+        else:
+            cls = "flash-red"
+
+        st.markdown(
+            f'<div class="card {cls}">{row["Transaction_ID"]}<br>Risk {int(row["Final_Risk_Score"])} → {row["Decision"]}</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================
-# ANALYSIS CORE
+# CENTER — RISK CORE
 # ======================
 with center:
-    st.subheader("Transaction Intelligence Core")
+    st.subheader("Risk Intelligence Core")
 
-    score=int(latest["Final_Risk_Score"])
-    gauge="🟢" if score<40 else "🟠" if score<70 else "🔴"
+    score = int(latest["Final_Risk_Score"])
+    st.progress(score)
 
-    st.markdown(f'<div class="card"><h2>{gauge} Risk Score {score}</h2>Decision: {latest["Decision"]}</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="card">
+    <h2>Risk Score {score}</h2>
+    Decision: <b>{latest["Decision"]}</b>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Radar
-    radar = pd.DataFrame({
-        "risk":[latest["Geo_Risk"],latest["Velocity_Risk"],latest["Device_Risk"],
-                latest["Amount_Risk"],latest["Network_Risk"],latest["Behavioral_Risk"]]},
-        index=["Geo","Velocity","Device","Amount","Network","Behavior"]
+    breakdown = pd.DataFrame({
+        "Risk": [
+            latest["Geo_Risk"],
+            latest["Velocity_Risk"],
+            latest["Device_Risk"],
+            latest["Amount_Risk"],
+            latest["Network_Risk"],
+            latest["Behavioral_Risk"]
+        ]},
+        index=["Geo", "Velocity", "Device", "Amount", "Network", "Behavior"]
     )
-    st.line_chart(radar)
+    st.bar_chart(breakdown)
 
-    # AI reasoning
-    reasons=[]
-    if latest["Geo_Risk"]>15: reasons.append("Geo jump anomaly")
-    if latest["Velocity_Risk"]>15: reasons.append("Velocity burst")
-    if latest["Device_Risk"]>15: reasons.append("Device mismatch")
-    if latest["Behavioral_Risk"]>15: reasons.append("Dormant reactivation")
-    if latest["Amount_Risk"]>15: reasons.append("Amount spike")
+    # Reason Codes
+    reasons = []
+    if latest["Geo_Risk"] > 20: reasons.append("ERR_GEO_IMPOSSIBLE")
+    if latest["Velocity_Risk"] > 20: reasons.append("ERR_VELOCITY_LIMIT")
+    if latest["Device_Risk"] > 20: reasons.append("ERR_DEVICE_CHANGE")
+    if latest["Amount_Risk"] > 20: reasons.append("ERR_AMOUNT_SPIKE")
 
     if reasons:
-        st.markdown('<div class="alert">'+" | ".join(reasons)+"</div>", unsafe_allow_html=True)
+        st.markdown('<div class="alert">' + " | ".join(reasons) + '</div>', unsafe_allow_html=True)
     else:
-        st.success("Behavior normal")
+        st.success("No rule triggered")
 
 # ======================
-# BLOCKCHAIN EXPLORER
+# RIGHT — LEDGER + FIREWALL
 # ======================
 with right:
-    st.subheader("Blockchain Explorer")
-    st.dataframe(ledger.tail(12), height=350)
+    st.subheader("Blockchain Ledger")
+    st.dataframe(ledger.tail(10), height=350)
 
 # ======================
-# FRAUD MAP
+# GEO VISUALIZATION
 # ======================
-st.subheader("Geo Jump Detection Map")
+st.subheader("Fraud Geo Visualization")
 geo = pd.DataFrame({
-    "lat":np.random.uniform(8,28,12),
-    "lon":np.random.uniform(72,88,12)
+    "lat": np.random.uniform(8, 28, 20),
+    "lon": np.random.uniform(72, 88, 20)
 })
 st.map(geo)
 
 # ======================
-# FRAUD NETWORK GRAPH
+# FRAUD CLUSTER
 # ======================
-#st.subheader("Fraud Network Graph")
-#G = nx.erdos_renyi_graph(10,0.3)
-#edges = pd.DataFrame(list(G.edges()), columns=["source","target"])
-#st.dataframe(edges)
+st.subheader("🚨 High Risk Cluster")
+st.dataframe(risk[risk["Final_Risk_Score"] > 70])
 
 # ======================
 # LEADERBOARD
 # ======================
-st.subheader("Fraud Leaderboard")
-top=risk.sort_values("Final_Risk_Score",ascending=False).head(5)
-st.dataframe(top[["Transaction_ID","Final_Risk_Score","Decision"]])
+st.subheader("Top Risk Transactions")
+st.dataframe(risk.sort_values("Final_Risk_Score", ascending=False).head(5))
 
 # ======================
-# HEAT ZONE
+# LEDGER INTEGRITY
 # ======================
-st.subheader("🚨 High Risk Cluster")
-st.dataframe(risk[risk["Final_Risk_Score"]>70])
-
-# ======================
-# INTEGRITY CHECK
-# ======================
-fail=False
-for i in range(1,len(ledger)):
-    if ledger.iloc[i]["Previous_Hash"]!=ledger.iloc[i-1]["Current_Hash"]:
-        fail=True
+fail = False
+for i in range(1, len(ledger)):
+    if ledger.iloc[i]["Previous_Hash"] != ledger.iloc[i - 1]["Current_Hash"]:
+        fail = True
         break
 
-if fail:
-    st.error("🚨 Blockchain Tampering Detected")
+if not fail:
+    st.success("Ledger OK")
 else:
-    st.success("✅ Ledger Integrity Verified")
+    st.error("Ledger Tampered")
 
 # ======================
 # AUTO REFRESH
